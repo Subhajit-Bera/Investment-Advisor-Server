@@ -3,13 +3,20 @@ import yfinance as yf
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.pydantic_v1 import BaseModel, Field
-from langchain.tools.tavily_search import TavilySearchResults
-from langgraph.graph import StateGraph, END
+# from langchain.tools.tavily_search import TavilySearchResults
+from langchain_community.tools.tavily_search import TavilySearchResults
+from langgraph.graph import StateGraph, END,add_messages
 from typing import TypedDict, List, Dict, Any
 from app.core.config import settings
+from typing import Annotated
+
 
 # 1. Define Agent Tools
-tavily_tool = TavilySearchResults(max_results=4, api_key=settings.TAVILY_API_KEY)
+# tavily_tool = TavilySearchResults(max_results=4, api_key=settings.TAVILY_API_KEY)
+tavily_tool = TavilySearchResults(
+    max_results=4,
+    tavily_api_key=settings.TAVILY_API_KEY  # 👈 correct name
+)
 
 # 2. Define Output Schemas
 class FinancialAnalysis(BaseModel):
@@ -37,8 +44,10 @@ class AgentState(TypedDict):
     company_ticker: str
     financial_data: Dict[str, Any]
     news_and_filings: str
-    financial_analysis_result: FinancialAnalysis
-    market_analysis_result: MarketAnalysis
+    # financial_analysis_result: FinancialAnalysis
+    # market_analysis_result: MarketAnalysis
+    financial_analysis_result: Annotated[List, add_messages]   # 👈 allows multiple writes
+    market_analysis_result: Annotated[List, add_messages]
     final_report: FinalReport
 
 # 4. Define Agent Nodes
@@ -125,6 +134,7 @@ workflow.add_edge("data_collector", "financial_analyst")
 workflow.add_edge("data_collector", "market_analyst")
 workflow.add_conditional_edges("financial_analyst", lambda state: "final_advisor" if state.get("market_analysis_result") else None)
 workflow.add_conditional_edges("market_analyst", lambda state: "final_advisor" if state.get("financial_analysis_result") else None)
+
 workflow.add_edge("final_advisor", END)
 app_graph = workflow.compile()
 
